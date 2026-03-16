@@ -1,6 +1,6 @@
 # courses/serializers.py
 from rest_framework import serializers
-from .models import Course, Module
+from .models import Course, Module, ModuleProgress, CourseProgress
 
 class ModuleSerializer(serializers.ModelSerializer):
     # Virtual fields for frontend
@@ -24,3 +24,15 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = ['id', 'title', 'modules']
+
+class ModuleProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModuleProgress
+        fields = ['id', 'user', 'module', 'completed', 'completed_at']
+
+
+class CourseProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseProgress
+        fields = ['id', 'user', 'course', 'completed_modules', 'total_modules', 'progress', 'completed', 'updated_at']
+        read_only_fields = ['user', 'updated_at']
