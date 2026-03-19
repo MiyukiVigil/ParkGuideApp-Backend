@@ -62,8 +62,18 @@ brew services start postgresql
 
 Open PostgreSQL shell:
 
+For Linux:
 ```bash
 sudo -u postgres psql
+```
+
+For Mac:
+```bash
+psql postgres
+```
+For Windows:
+```bash
+psql -U postgres
 ```
 
 Run:
@@ -72,6 +82,7 @@ Run:
 CREATE DATABASE pga_db;
 CREATE USER admin WITH PASSWORD 'ADMIN';
 GRANT ALL PRIVILEGES ON DATABASE pga_db TO admin;
+GRANT ALL ON SCHEMA public TO admin;
 ```
 
 Exit:
@@ -83,9 +94,15 @@ Exit:
 ## Setup
 1. Create and activate a virtual environment:
 
+For Mac and Linux (Depnding on your terminal shell):
 ```bash
 python -m venv venv
 source venv/bin/activate
+```
+
+For Windows:
+```bash
+venv\Scripts\activate
 ```
 
 2. Install core backend dependencies:
@@ -103,6 +120,7 @@ pip install -r requirements.txt
 4. Run migrations:
 For first time setup
 ```bash
+python manage.py load_training_courses 
 python manage.py makemigrations accounts courses
 python manage.py migrate
 
@@ -126,7 +144,7 @@ python manage.py runserver
 ```
 
 Server URL:
-- `http://127.0.0.1:8000` (For android, please set this: adb reverse tcp:8000 tcp:8000)
+- `http://127.0.0.1:8000` (For android dev build using physical phone, please set this: adb reverse tcp:8000 tcp:8000)
 
 ## API Base Paths
 - App API root: `/api/`
