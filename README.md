@@ -1,6 +1,6 @@
 # Park Guide App Backend
 
-Django REST backend for the Park Guide App training module.
+Django REST backend for the Park Guide App
 
 ## Stack
 - Django + Django REST Framework
