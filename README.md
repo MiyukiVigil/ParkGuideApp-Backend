@@ -1,251 +1,220 @@
 # Park Guide App Backend
 
-Django REST backend for the Park Guide App training module.
+Django REST backend for the Park Guide App training platform. This service handles authentication, training content, learner progress, badges, notifications, and secure file delivery.
 
 ## Stack
-- Django + Django REST Framework
-- JWT authentication (SimpleJWT)
-- PostgreSQL
-- Custom user model (`accounts.CustomUser`)
+- Django 6
+- Django REST Framework
+- JWT auth with `djangorestframework-simplejwt`
+- Neon Postgres via `DATABASE_URL`
+- Firebase Storage for secure file uploads and signed downloads
+- Custom user model: `accounts.CustomUser`
 
-## Current Features
-- Course and module APIs
-- Module completion tracking per user
-- Course-level progress tracking per user
-- Admin pages for courses, modules, module progress, and course progress
+## Features
+- Email-based registration and login
+- Training courses and modules API
+- Module completion and course progress tracking
+- Badge progress and awarded badge endpoints
+- In-app notifications with read/clear actions
+- Secure file upload, download, and temporary signed URLs using Firebase Storage
+- Django admin for courses, badges, notifications, users, and files
 
-## Prerequisites
-- Python 3.10+
-- PostgreSQL running locally
-- A PostgreSQL database/user matching current settings in [park_guide/settings.py](park_guide/settings.py)
+## Environment Variables
+Create a `.env` file in the project root.
 
-Current DB config in settings:
-- DB name: `pga_db`
-- DB user: `admin`
-- DB password: `ADMIN`
-- Host: `localhost`
-- Port: `5432`
+Required:
 
-## PostgreSQL Setup
+```env
+SECRET_KEY=replace-me
+DEBUG=True
+ALLOWED_HOSTS=127.0.0.1,localhost
+DATABASE_URL=postgresql://<user>:<password>@<host>/<db>?sslmode=require
+FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+FIREBASE_SERVICE_ACCOUNT_PATH=path/to/firebase-service-account.json
+```
 
-### Install PostgreSQL
+Optional:
 
-- Ubuntu/Debian:
+```env
+JWT_SIGNING_KEY=replace-me-if-you-want-a-separate-jwt-key
+```
+
+Notes:
+- `DATABASE_URL` is the main database connection string. This is where your Neon connection string goes.
+- `ssl_require=True` is enabled in Django settings, so your Postgres connection must support SSL.
+- `FIREBASE_SERVICE_ACCOUNT_PATH` is resolved relative to the project root in `park_guide/settings.py`. A value like `secrets/firebase-admin.json` works well.
+- Keep the Firebase bucket name clean, without `gs://`.
+
+## Local Setup
+1. Create a virtual environment and activate it.
 
 ```bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-- Arch/Manjaro:
+2. Install dependencies.
 
 ```bash
-sudo pacman -S postgresql
-sudo -u postgres initdb -D /var/lib/postgres/data
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+pip install Django djangorestframework djangorestframework-simplejwt psycopg2-binary dj-database-url python-dotenv firebase-admin
 ```
 
-- macOS (Homebrew):
+3. Create `.env` from the example file and fill in your Neon and Firebase values.
 
 ```bash
-brew install postgresql
-brew services start postgresql
+cp .env.example .env
 ```
 
-- Windows:
-  - Install from https://www.postgresql.org/download/windows/
-  - Use default port `5432`
-
-### Create database and user
-
-Open PostgreSQL shell:
-
-For Linux:
-```bash
-sudo -u postgres psql
-```
-
-For Mac:
-```bash
-psql postgres
-```
-For Windows:
-```bash
-psql -U postgres
-```
-
-Run:
-
-```sql
-CREATE DATABASE pga_db;
-CREATE USER admin WITH PASSWORD 'ADMIN';
-GRANT ALL PRIVILEGES ON DATABASE pga_db TO admin;
-GRANT ALL ON SCHEMA public TO admin;
-```
-
-Exit:
-
-```sql
-\q
-```
-
-## Setup
-1. Create and activate a virtual environment:
-
-For Mac and Linux (Depnding on your terminal shell):
-```bash
-python -m venv venv
-source venv/bin/activate
-```
-
-For Windows:
-```bash
-venv\Scripts\activate
-```
-
-2. Install core backend dependencies:
+4. Run migrations.
 
 ```bash
-pip install django djangorestframework djangorestframework-simplejwt psycopg2-binary
-pip install boto3
-```
-
-3. (Optional) Install additional packages from `requirements.txt` if you use it in your environment:
-
-```bash
-pip install -r requirements.txt
-```
-
-4. Run migrations:
-For first time setup
-```bash
-python manage.py load_training_courses 
-python manage.py makemigrations accounts courses
-python manage.py migrate
-
-```
-After that when there's changes
-```bash
-python manage.py makemigrations
 python manage.py migrate
 ```
 
-5. Create admin user (to access admin dashboard):
+5. Load the bundled training data.
+
+```bash
+python manage.py load_training_courses
+```
+
+6. Create an admin user.
 
 ```bash
 python manage.py createsuperuser
 ```
 
-6. Start server:
+7. Verify Firebase Storage access.
+
+```bash
+python manage.py bootstrap_private_bucket
+```
+
+8. Optionally seed demo badges.
+
+```bash
+python manage.py seed_demo_badges
+```
+
+9. Start the server.
 
 ```bash
 python manage.py runserver
 ```
 
-Server URL:
-- `http://127.0.0.1:8000` (For android dev build using physical phone, please set this: adb reverse tcp:8000 tcp:8000)
+Default local URL:
+- `http://127.0.0.1:8000`
 
-## API Base Paths
-- App API root: `/api/`
-- Auth API root: `/api/accounts/`
-- Notifications API root: `/api/notifications/`
-- User progress API root: `/api/user-progress/`
-- Secure files API root: `/api/secure-files/`
+If you are testing from a physical Android device through a local dev build:
 
-## Authentication Endpoints
-- `POST /api/accounts/register/` – register user
-- `POST /api/accounts/login/` – get JWT `access` and `refresh`
+```bash
+adb reverse tcp:8000 tcp:8000
+```
 
-All course/progress endpoints require `Authorization: Bearer <access_token>`.
+## Neon Database
+This backend now expects a Postgres connection string through `DATABASE_URL`, which makes Neon the easiest deployment target.
 
-## Training Endpoints
-- `GET /api/courses/` – list courses with nested modules
-- `GET /api/modules/` – list modules
-- `GET /api/progress/` – list module progress rows for logged-in user
-- `GET /api/course-progress/` – list course progress rows for logged-in user
-- `POST /api/complete-module/` – mark module completed and auto-update course progress
+Example format:
 
-## Notification Endpoints
-- `GET /api/notifications/items/` – list notifications for logged-in user
-- `POST /api/notifications/items/{id}/mark-read/` – mark one notification as read
-- `POST /api/notifications/items/mark-all-read/` – mark all as read
-- `POST /api/notifications/items/clear-read/` – delete all read notifications for user
+```env
+DATABASE_URL=postgresql://username:password@ep-example.ap-southeast-1.aws.neon.tech/dbname?sslmode=require
+```
 
-All notification endpoints require `Authorization: Bearer <access_token>`.
+If the database is brand new, run:
 
-## Secure File Endpoints (Private S3)
-- `GET /api/secure-files/files/` – list your uploaded files (admin sees all)
-- `POST /api/secure-files/files/` – upload file with multipart field `file`
-- `GET /api/secure-files/files/{id}/` – file metadata + temporary download URL
-- `GET /api/secure-files/files/{id}/download-url/` – new temporary download URL
-- `DELETE /api/secure-files/files/{id}/` – delete a file
+```bash
+python manage.py migrate
+python manage.py load_training_courses
+python manage.py seed_demo_badges
+```
 
-All secure-file endpoints require `Authorization: Bearer <access_token>`.
+## Firebase Storage
+Secure file uploads are stored in Firebase Storage.
 
-## Google FIrebase Usage
+What you need:
+- A Firebase project
+- A Storage bucket
+- A service account JSON file with Storage access
+- Matching values for `FIREBASE_STORAGE_BUCKET` and `FIREBASE_SERVICE_ACCOUNT_PATH`
 
-- Rquires api json file, requests from @MiyukiVigil
+Quick check:
+
 ```bash
 python manage.py bootstrap_private_bucket
 ```
 
-### Example `course-progress` response row
+If configured correctly, the command confirms that the bucket is accessible.
 
-```json
-{
-  "id": 1,
-  "user": 2,
-  "course": 1,
-  "completed_modules": 2,
-  "total_modules": 5,
-  "progress": 0.4,
-  "completed": false,
-  "updated_at": "2026-03-16T12:00:00Z"
-}
-```
+## API Overview
+Base routes:
+- `/api/`
+- `/api/accounts/`
+- `/api/notifications/`
+- `/api/user-progress/`
+- `/api/secure-files/`
+
+Authentication:
+- `POST /api/accounts/register/`
+- `POST /api/accounts/login/`
+- `POST /api/accounts/token/refresh/`
+
+Training:
+- `GET /api/courses/`
+- `GET /api/modules/`
+- `GET /api/progress/`
+- `POST /api/progress/`
+- `GET /api/course-progress/`
+- `POST /api/course-progress/`
+- `POST /api/complete-module/`
+
+Badges:
+- `GET /api/user-progress/badges/`
+- `GET /api/user-progress/my-badges/`
+
+Notifications:
+- `GET /api/notifications/items/`
+- `POST /api/notifications/items/{id}/mark-read/`
+- `POST /api/notifications/items/mark-all-read/`
+- `POST /api/notifications/items/clear-read/`
+
+Secure files:
+- `GET /api/secure-files/files/`
+- `POST /api/secure-files/files/` with multipart field `file`
+- `GET /api/secure-files/files/{id}/`
+- `DELETE /api/secure-files/files/{id}/`
+- `GET /api/secure-files/files/{id}/download-url/`
+- `GET /api/secure-files/files/{id}/download/`
+
+All API endpoints require `Authorization: Bearer <access_token>` unless noted otherwise.
 
 ## Admin
-Open Django admin:
-- `http://127.0.0.1:8000/admin/`
+Admin URL:
+- `/admin/`
 
-Available sections under Courses:
-- Course
-- Module
+Main admin areas include:
+- Accounts
+- Courses and modules
+- User progress
+- Badges and awarded badges
+- Notifications
+- Secure files
 
-Available sections under User Progress:
-- Module progress
-- Course progress
-- Badge
-- User badge
+Notification send flow:
+1. Create a notification in Django admin.
+2. Select it in the changelist.
+3. Run the action to send it to users.
 
-Available sections under Secure Files:
-- Secure files (includes drag-and-drop upload area in admin list page)
+## Useful Commands
+```bash
+python manage.py migrate
+python manage.py load_training_courses
+python manage.py seed_demo_badges
+python manage.py bootstrap_private_bucket
+python manage.py createsuperuser
+python manage.py runserver
+```
 
-Available sections under Notifications:
-- Notification
-- User notification
-
-Admin send flow:
-1. Create a Notification in Django admin.
-2. Select it from list view.
-3. Run action: **Send selected notifications to all users**.
-
-Demo badge setup command:
-- `python manage.py seed_demo_badges` (creates selectable badges from current training courses/module data)
-
-## Notes
-- `ModuleProgress` and `CourseProgress` are the source of truth for learner progress.
-- Admins can create badges and manage them with a pending workflow (`pending`, `granted`, `rejected`) based on each user's completed module count.
-- Admin actions support syncing pending badges for eligible users, auto-approving pending badges, and auto-rejecting pending badges.
-- Admins can also use a one-click action: **Sync pending then auto approve eligible users**.
-- Notifications can be broadcast from admin to all regular app users in one action (excludes staff/admin accounts).
-- New notifications created from admin are auto-broadcast immediately to all regular app users (no second step needed).
-- Quiz data exists inside module content (`Module.quiz`) and now supports multiple quizzes per module.
-- Training JSON can use either `quiz` (single object, backward compatible) or `quizzes` (array of quiz objects).
-- Each quiz supports single-answer (`correctIndex`) and multi-answer (`correctIndexes`) with up to 3 correct choices.
-- Posting to progress endpoints reuses and amends existing progress records for the same user/course or user/module instead of creating new IDs.
-- This backend currently uses hardcoded DB credentials in settings (fine for class/dev use, not production).
-- The current `requirements.txt` appears to include many machine-specific packages; use the core dependency install command above as the minimum reliable setup.
-- Secure files are stored in a private S3 bucket and accessed only with valid app auth + short-lived presigned URLs.
+## Project Notes
+- Default REST permissions require authentication globally.
+- JWT uses `SECRET_KEY` unless `JWT_SIGNING_KEY` is provided.
+- The database falls back to local SQLite only if `DATABASE_URL` is missing, but for this project you should treat Neon/Postgres as the real target setup.
+- Firebase file paths are stored in the `SecureFile.s3_key` field for legacy compatibility.
