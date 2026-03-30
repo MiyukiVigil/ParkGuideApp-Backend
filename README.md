@@ -248,5 +248,4 @@ Demo badge setup command:
 - Posting to progress endpoints reuses and amends existing progress records for the same user/course or user/module instead of creating new IDs.
 - This backend currently uses hardcoded DB credentials in settings (fine for class/dev use, not production).
 - The current `requirements.txt` appears to include many machine-specific packages; use the core dependency install command above as the minimum reliable setup.
-- Secure files are stored in a private S3 bucket and accessed only with valid app auth + short-lived presigned URLs.
-d
+- Secure files are stored in a private S3 bucket and accessed only with valid app auth + short-lived presigned URLs.∂ßß
