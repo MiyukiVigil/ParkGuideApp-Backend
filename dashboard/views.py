@@ -6,12 +6,15 @@ from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 from django.db.models import Count, Q, Avg, Sum
 from django.utils import timezone
+from django.core.exceptions import ImproperlyConfigured
 from datetime import timedelta
 
 from accounts.models import CustomUser
 from courses.models import Course, Module, ModuleProgress, CourseProgress
 from user_progress.models import Badge, UserBadge
 from notifications.models import Notification, UserNotification
+from secure_files.models import SecureFile
+from secure_files.services.firebase_storage import delete_file as delete_secure_blob, upload_file
 
 
 def normalize_progress_value(value):
@@ -422,6 +425,82 @@ def dashboard_notifications(request):
         }
     }
     return render(request, 'dashboard/notifications.html', context)
+
+
+@login_required
+@user_passes_test(is_staff_or_admin)
+def dashboard_secure_files(request):
+    """Secure file upload and management page."""
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'upload_files':
+            files = request.FILES.getlist('files')
+            if not files:
+                single_file = request.FILES.get('file')
+                if single_file:
+                    files = [single_file]
+
+            if not files:
+                messages.warning(request, 'No files selected.')
+                return redirect('dashboard:secure_files')
+
+            uploaded_count = 0
+            for uploaded in files:
+                try:
+                    upload_file(uploaded=uploaded, owner=request.user)
+                    uploaded_count += 1
+                except ImproperlyConfigured as exc:
+                    messages.error(request, f'Upload failed: {exc}')
+                    return redirect('dashboard:secure_files')
+                except Exception as exc:
+                    messages.error(request, f'Upload failed for {uploaded.name}: {exc}')
+                    return redirect('dashboard:secure_files')
+
+            messages.success(request, f'Successfully uploaded {uploaded_count} file(s).')
+            return redirect('dashboard:secure_files')
+
+        if action == 'delete_file':
+            file_id = request.POST.get('file_id')
+            secure_file = SecureFile.objects.filter(id=file_id).first()
+            if not secure_file:
+                messages.error(request, 'File not found.')
+                return redirect('dashboard:secure_files')
+
+            try:
+                delete_secure_blob(secure_file.s3_key)
+            except ImproperlyConfigured as exc:
+                messages.error(request, f'Delete failed: {exc}')
+                return redirect('dashboard:secure_files')
+            except Exception as exc:
+                messages.error(request, f'Delete failed: {exc}')
+                return redirect('dashboard:secure_files')
+
+            secure_file.delete()
+            messages.success(request, 'File deleted successfully.')
+            return redirect('dashboard:secure_files')
+
+    files_qs = SecureFile.objects.select_related('owner').all().order_by('-uploaded_at')
+    page = request.GET.get('page', 1)
+    per_page = 25
+    total = files_qs.count()
+    start = (int(page) - 1) * per_page
+    end = start + per_page
+    files_paginated = files_qs[start:end]
+    total_pages = (total + per_page - 1) // per_page
+
+    context = {
+        'files': files_paginated,
+        'total': total,
+        'current_page': int(page),
+        'total_pages': total_pages,
+        'stats': {
+            'total_files': total,
+            'total_size': files_qs.aggregate(total=Sum('size'))['total'] or 0,
+            'owners': files_qs.values('owner').distinct().count(),
+        },
+    }
+    return render(request, 'dashboard/secure_files.html', context)
 
 def get_dashboard_stats(request):
     """Get overall dashboard statistics"""
