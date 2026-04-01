@@ -182,3 +182,25 @@ Demo badge setup command:
 - Posting to progress endpoints reuses and amends existing progress records for the same user/course or user/module instead of creating new IDs.
 - Dependencies are maintained in `requirements.txt` and should stay project-focused only.
 - Secure files are stored in Firebase private storage and accessed only with valid app auth + short-lived signed URLs.
+
+## Azure Deployment Checklist
+
+Required Azure App Service app settings:
+- `SECRET_KEY`
+- `DEBUG=False`
+- `ALLOWED_HOSTS=<your-app-name>.azurewebsites.net`
+- `DATABASE_URL=<your Neon connection string>`
+- `DB_SSL_REQUIRE=True`
+- `FIREBASE_STORAGE_BUCKET=<your firebase bucket>`
+- `FIREBASE_SERVICE_ACCOUNT_JSON=<firebase service account json string>`
+
+Startup command (App Service):
+```bash
+gunicorn park_guide.wsgi:application --bind=0.0.0.0 --timeout 600
+```
+
+After deploy, run:
+```bash
+python manage.py migrate
+python manage.py collectstatic --noinput
+```
