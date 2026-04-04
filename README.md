@@ -199,8 +199,28 @@ Startup command (App Service):
 gunicorn park_guide.wsgi:application --bind=0.0.0.0 --timeout 600
 ```
 
-After deploy, run:
-```bash
-python manage.py migrate
-python manage.py collectstatic --noinput
-```
+Available sections under Notifications:
+- Notification
+- User notification
+
+Admin send flow:
+1. Create a Notification in Django admin.
+2. Select it from list view.
+3. Run action: **Send selected notifications to all users**.
+
+Demo badge setup command:
+- `python manage.py seed_demo_badges` (creates selectable badges from current training courses/module data)
+
+## Notes
+- `ModuleProgress` and `CourseProgress` are the source of truth for learner progress.
+- Admins can create badges and manage them with a pending workflow (`pending`, `granted`, `rejected`) based on each user's completed module count.
+- Admin actions support syncing pending badges for eligible users, auto-approving pending badges, and auto-rejecting pending badges.
+- Admins can also use a one-click action: **Sync pending then auto approve eligible users**.
+- Notifications can be broadcast from admin to all regular app users in one action (excludes staff/admin accounts).
+- New notifications created from admin are auto-broadcast immediately to all regular app users (no second step needed).
+- Quiz data exists inside module content (`Module.quiz`) and now supports multiple quizzes per module.
+- Training JSON can use either `quiz` (single object, backward compatible) or `quizzes` (array of quiz objects).
+- Each quiz supports single-answer (`correctIndex`) and multi-answer (`correctIndexes`) with up to 3 correct choices.
+- Posting to progress endpoints reuses and amends existing progress records for the same user/course or user/module instead of creating new IDs.
+- Dependencies are maintained in `requirements.txt` and should stay project-focused only.
+- Secure files are stored in Firebase private storage and accessed only with valid app auth + short-lived signed URLs.

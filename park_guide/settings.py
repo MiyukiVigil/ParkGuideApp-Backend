@@ -199,6 +199,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
+    BASE_DIR / 'images',
 ]
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
