@@ -524,6 +524,17 @@ class PasskeyRegisterVerifyView(generics.GenericAPIView):
                 str(exc),
             )
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.exception(
+                "Unexpected passkey registration verification error for user_id=%s request_id=%s origin=%s",
+                request.user.id,
+                request_id,
+                expected_origin,
+            )
+            return Response(
+                {'detail': f'Unexpected passkey registration verification error: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         credential_id = _get_credential_id_from_payload(credential_payload)
         if not credential_id:
@@ -657,6 +668,17 @@ class PasskeyAuthenticationVerifyView(generics.GenericAPIView):
             )
         except primitives['InvalidAuthenticationResponse'] as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as exc:
+            logger.exception(
+                "Unexpected passkey authentication verification error for request_id=%s user_id=%s origin=%s",
+                request_id,
+                credential.user_id,
+                expected_origin,
+            )
+            return Response(
+                {'detail': f'Unexpected passkey authentication verification error: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         credential.sign_count = verification.new_sign_count
         credential.credential_device_type = str(getattr(verification, 'credential_device_type', '') or '')
