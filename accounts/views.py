@@ -214,6 +214,19 @@ def _get_validated_expected_origin(payload):
     return allowed_origin_list[0] if allowed_origin_list else ''
 
 
+def _compact_credential_device_type(value):
+    raw_value = getattr(value, 'value', value)
+    text = str(raw_value or '').strip()
+    if not text:
+        return ''
+
+    if '.' in text:
+        text = text.split('.')[-1]
+
+    normalized = text.lower().replace('-', '_').replace(' ', '_')
+    return normalized[:32]
+
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
@@ -552,7 +565,9 @@ class PasskeyRegisterVerifyView(generics.GenericAPIView):
                     'credential_public_key': verification.credential_public_key,
                     'sign_count': verification.sign_count,
                     'transports': credential_payload.get('response', {}).get('transports', []),
-                    'credential_device_type': str(getattr(verification, 'credential_device_type', '') or ''),
+                    'credential_device_type': _compact_credential_device_type(
+                        getattr(verification, 'credential_device_type', '')
+                    ),
                     'credential_backed_up': bool(getattr(verification, 'credential_backed_up', False)),
                     'label': cached.get('label', ''),
                 },
@@ -705,7 +720,9 @@ class PasskeyAuthenticationVerifyView(generics.GenericAPIView):
 
         try:
             credential.sign_count = verification.new_sign_count
-            credential.credential_device_type = str(getattr(verification, 'credential_device_type', '') or '')
+            credential.credential_device_type = _compact_credential_device_type(
+                getattr(verification, 'credential_device_type', '')
+            )
             credential.credential_backed_up = bool(getattr(verification, 'credential_backed_up', False))
             credential.last_used_at = timezone.now()
             credential.save(
