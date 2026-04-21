@@ -2,6 +2,7 @@
 import json
 import hashlib
 import hmac
+import logging
 import os
 import random
 import struct
