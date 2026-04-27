@@ -334,6 +334,8 @@ def _get_validated_expected_origin(payload):
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [throttling.ScopedRateThrottle]
+    throttle_scope = 'register'
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
@@ -463,6 +465,8 @@ class ChangePasswordView(generics.GenericAPIView):
 
 class ForgotPasswordRequestView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [throttling.ScopedRateThrottle]
+    throttle_scope = 'password_reset'
 
     def post(self, request, *args, **kwargs):
         email = str(request.data.get('email') or '').strip().lower()
