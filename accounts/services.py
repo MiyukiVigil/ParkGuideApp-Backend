@@ -83,10 +83,13 @@ def generate_profile_image_url(storage_key, expires_seconds=3600):
     if not storage_key:
         return ''
 
-    _ensure_firebase_initialized()
-    bucket = storage.bucket()
-    blob = bucket.blob(storage_key)
-    return blob.generate_signed_url(datetime.timedelta(seconds=expires_seconds), method='GET')
+    try:
+        _ensure_firebase_initialized()
+        bucket = storage.bucket()
+        blob = bucket.blob(storage_key)
+        return blob.generate_signed_url(datetime.timedelta(seconds=expires_seconds), method='GET')
+    except Exception:
+        return ''
 
 
 def delete_profile_image(storage_key):
