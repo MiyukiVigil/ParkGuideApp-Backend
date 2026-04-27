@@ -26,9 +26,10 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import AccountApplication, PasskeyCredential, PasswordResetCode, TwoFactorAuth
+from .models import AccountApplication, GuideLocation, PasskeyCredential, PasswordResetCode, TwoFactorAuth
 from .serializers import (
     AccountApplicationSerializer,
+    GuideLocationSerializer,
     PasskeyCredentialSerializer,
     ProfileSerializer,
     RegisterSerializer,
@@ -390,6 +391,32 @@ class AccountApplicationCreateView(generics.CreateAPIView):
             [UserNotification(user=user, notification=notification) for user in staff_users],
             ignore_conflicts=True,
         )
+
+
+class GuideLocationsView(generics.GenericAPIView):
+    serializer_class = GuideLocationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            GuideLocation.objects.select_related('user')
+            .filter(user__is_active=True, user__is_staff=False, user__is_superuser=False)
+            .order_by('-updated_at')
+        )
+
+    def get(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return Response({'locations': serializer.data})
+
+    def post(self, request, *args, **kwargs):
+        instance = getattr(request.user, 'guide_location', None)
+        serializer = self.get_serializer(instance=instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        location, _ = GuideLocation.objects.update_or_create(
+            user=request.user,
+            defaults=serializer.validated_data,
+        )
+        return Response(self.get_serializer(location).data, status=status.HTTP_200_OK)
 
 
 class ChangePasswordView(generics.GenericAPIView):

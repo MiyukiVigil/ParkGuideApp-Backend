@@ -5,7 +5,7 @@ import uuid
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import AccountApplication, PasskeyCredential, TwoFactorAuth
+from .models import AccountApplication, GuideLocation, PasskeyCredential, TwoFactorAuth
 from .services import generate_profile_image_url, upload_application_cv
 
 
@@ -249,6 +249,42 @@ class PasskeyCredentialSerializer(serializers.ModelSerializer):
             'last_used_at',
             'created_at',
         ]
+
+
+class GuideLocationSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='user.id', read_only=True)
+    name = serializers.SerializerMethodField(read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    last_seen = serializers.DateTimeField(source='updated_at', read_only=True)
+
+    class Meta:
+        model = GuideLocation
+        fields = [
+            'id',
+            'name',
+            'email',
+            'latitude',
+            'longitude',
+            'accuracy',
+            'heading',
+            'speed',
+            'last_seen',
+        ]
+        read_only_fields = ['id', 'name', 'email', 'last_seen']
+
+    def get_name(self, obj):
+        full_name = f'{obj.user.first_name} {obj.user.last_name}'.strip()
+        return full_name or obj.user.username or obj.user.email
+
+    def validate_latitude(self, value):
+        if value < -90 or value > 90:
+            raise serializers.ValidationError('Latitude must be between -90 and 90.')
+        return value
+
+    def validate_longitude(self, value):
+        if value < -180 or value > 180:
+            raise serializers.ValidationError('Longitude must be between -180 and 180.')
+        return value
 
 
 class TwoFactorAuthSerializer(serializers.ModelSerializer):
