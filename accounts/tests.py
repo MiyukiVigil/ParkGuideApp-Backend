@@ -9,7 +9,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import PasskeyCredential
+from .models import GuideLocation, PasskeyCredential
 
 User = get_user_model()
 
@@ -250,3 +250,42 @@ class ProfileApiTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.profile_image_path, 'profiles/profileuser/uploaded.png')
         mocked_upload.assert_called_once()
+
+
+class GuideLocationApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='guideuser',
+            email='guide@example.com',
+            password='TempPass123!',
+        )
+        self.other_user = User.objects.create_user(
+            username='otherguide',
+            email='other@example.com',
+            password='TempPass123!',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_delete_removes_authenticated_guide_location(self):
+        GuideLocation.objects.create(user=self.user, latitude=1.553300, longitude=110.359200)
+
+        response = self.client.delete(reverse('guide_locations'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['deleted'])
+        self.assertFalse(GuideLocation.objects.filter(user=self.user).exists())
+
+    def test_get_only_returns_active_guide_locations(self):
+        GuideLocation.objects.create(user=self.user, latitude=1.553300, longitude=110.359200, is_active=False)
+        visible_location = GuideLocation.objects.create(
+            user=self.other_user,
+            latitude=1.560000,
+            longitude=110.360000,
+            is_active=True,
+        )
+
+        response = self.client.get(reverse('guide_locations'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        returned_ids = [item['id'] for item in response.data['locations']]
+        self.assertEqual(returned_ids, [visible_location.user_id])

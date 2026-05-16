@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('accounts', '0009_customuser_profile_image_path'),
+        ('accounts', '0009_customuser_profile_image_path_twofactorauth'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
