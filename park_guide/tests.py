@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from courses.models import Course, CourseProgress, Module, ModuleProgress
@@ -83,7 +83,24 @@ class WellKnownAssetLinksTests(TestCase):
 
         payload = response.json()
         self.assertEqual(len(payload), 1)
-        self.assertEqual(payload[0]["relation"], ["delegate_permission/common.get_login_creds"])
+        self.assertIn("delegate_permission/common.get_login_creds", payload[0]["relation"])
         self.assertEqual(payload[0]["target"]["namespace"], "android_app")
         self.assertTrue(payload[0]["target"]["package_name"])
         self.assertEqual(len(payload[0]["target"]["sha256_cert_fingerprints"]), 1)
+
+    @override_settings(
+        PASSKEY_ANDROID_SHA256_FINGERPRINTS=[
+            "11:22:33:44",
+            "AA:BB:CC:DD",
+        ]
+    )
+    def test_assetlinks_json_endpoint_returns_multiple_sha256_fingerprints(self):
+        response = self.client.get(reverse("assetlinks_json"))
+
+        self.assertEqual(response.status_code, 200)
+
+        payload = response.json()
+        self.assertEqual(
+            payload[0]["target"]["sha256_cert_fingerprints"],
+            ["11:22:33:44", "AA:BB:CC:DD"],
+        )

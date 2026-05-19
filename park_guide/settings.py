@@ -38,6 +38,11 @@ def _env_int(name, default=0):
         return default
 
 
+def _env_list(name, default=''):
+    value = os.getenv(name, default)
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -238,6 +243,7 @@ PASSKEY_ANDROID_SHA256 = os.getenv(
     'PASSKEY_ANDROID_SHA256',
     '42:41:D6:FD:23:A2:3B:FD:5A:B9:86:3F:99:D5:2E:54:A3:D2:CF:4D:5C:B7:0A:EA:CC:52:31:B1:A4:AA:B7:55',
 )
+PASSKEY_ANDROID_SHA256_FINGERPRINTS = _env_list('PASSKEY_ANDROID_SHA256', PASSKEY_ANDROID_SHA256)
 
 # Email settings (SMTP)
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')

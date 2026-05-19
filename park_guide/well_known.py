@@ -20,7 +20,7 @@ def assetlinks_json(request):
             "target": {
                 "namespace": "android_app",
                 "package_name": settings.PASSKEY_ANDROID_PACKAGE_NAME,
-                "sha256_cert_fingerprints": [settings.PASSKEY_ANDROID_SHA256],
+                "sha256_cert_fingerprints": settings.PASSKEY_ANDROID_SHA256_FINGERPRINTS,
             },
         }
     ]

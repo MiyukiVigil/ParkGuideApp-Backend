@@ -261,8 +261,8 @@ def _compact_credential_device_type(value):
     return normalized[:32]
 
 
-def _build_android_passkey_origin():
-    fingerprint = str(getattr(settings, 'PASSKEY_ANDROID_SHA256', '') or '').strip()
+def _build_android_passkey_origin(fingerprint):
+    fingerprint = str(fingerprint or '').strip()
     if not fingerprint:
         return ''
 
@@ -279,12 +279,14 @@ def _build_android_passkey_origin():
 def _get_expected_passkey_origins():
     origins = []
     web_origin = str(getattr(settings, 'PASSKEY_ORIGIN', '') or '').strip()
-    android_origin = _build_android_passkey_origin()
+    fingerprints = getattr(settings, 'PASSKEY_ANDROID_SHA256_FINGERPRINTS', [])
 
     if web_origin:
         origins.append(web_origin)
-    if android_origin and android_origin not in origins:
-        origins.append(android_origin)
+    for fingerprint in fingerprints:
+        android_origin = _build_android_passkey_origin(fingerprint)
+        if android_origin and android_origin not in origins:
+            origins.append(android_origin)
 
     if len(origins) == 1:
         return origins[0]
