@@ -82,6 +82,30 @@ def _build_auth_response(user):
     }
 
 
+def _verify_google_id_token(token):
+    client_ids = getattr(settings, 'GOOGLE_OAUTH_CLIENT_IDS', [])
+    if not client_ids:
+        raise serializers.ValidationError('Google login is not configured.')
+
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
+    except ImportError as exc:
+        logger.exception("Google auth dependencies are unavailable.")
+        raise serializers.ValidationError('Google login is not available.') from exc
+
+    last_error = None
+    request = google_requests.Request()
+    for client_id in client_ids:
+        try:
+            return google_id_token.verify_oauth2_token(token, request, client_id)
+        except ValueError as exc:
+            last_error = exc
+
+    logger.warning("Google ID token verification failed: %s", last_error)
+    raise serializers.ValidationError('Google sign-in could not be verified.')
+
+
 def _get_webauthn_dependencies():
     try:
         from webauthn import (
@@ -613,6 +637,36 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
 
         return Response(_build_auth_response(user_obj), status=status.HTTP_200_OK)
+
+
+class GoogleLoginView(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [throttling.ScopedRateThrottle]
+    throttle_scope = 'login'
+
+    def post(self, request, *args, **kwargs):
+        token = str(request.data.get('id_token') or request.data.get('idToken') or '').strip()
+        if not token:
+            return Response({'detail': 'Google id_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payload = _verify_google_id_token(token)
+        except serializers.ValidationError as exc:
+            detail = exc.detail[0] if isinstance(exc.detail, list) else exc.detail
+            return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = str(payload.get('email') or '').strip().lower()
+        if not email or not payload.get('email_verified'):
+            return Response({'detail': 'Google account email is not verified.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if not user:
+            return Response(
+                {'detail': 'No active ParkGuide account is linked to this Google email.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response(_build_auth_response(user), status=status.HTTP_200_OK)
 
 
 class TwoFactorStatusView(generics.GenericAPIView):

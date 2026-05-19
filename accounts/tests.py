@@ -204,6 +204,36 @@ class PasskeyApiTests(APITestCase):
         self.assertEqual(credential.sign_count, 9)
         self.assertIsNotNone(credential.last_used_at)
 
+    @patch(
+        'accounts.views._verify_google_id_token',
+        return_value={'email': 'learner@example.com', 'email_verified': True},
+    )
+    def test_google_login_returns_tokens_for_existing_user(self, mocked_verify):
+        response = self.client.post(
+            reverse('google_login'),
+            {'id_token': 'google-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+        self.assertEqual(response.data['user']['email'], self.user.email)
+        mocked_verify.assert_called_once_with('google-token')
+
+    @patch(
+        'accounts.views._verify_google_id_token',
+        return_value={'email': 'unknown@example.com', 'email_verified': True},
+    )
+    def test_google_login_rejects_unknown_user(self, mocked_verify):
+        response = self.client.post(
+            reverse('google_login'),
+            {'id_token': 'google-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
 
 class ProfileApiTests(APITestCase):
     def setUp(self):
