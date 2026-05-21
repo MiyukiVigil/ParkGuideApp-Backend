@@ -8,6 +8,20 @@ from django.utils import timezone
 from .models import RangerEyeAlert, RangerEyeRecording, RangerEyeRecorderStatus, RangerEyeSensorNode
 
 
+@require_GET
+def api_root(request):
+    return JsonResponse({
+        "detail": "Ranger Eye API is available.",
+        "endpoints": {
+            "dashboard_data": "/api/ranger-eye/dashboard-data/",
+            "upload_evidence": "/api/ranger-eye/upload/",
+            "sensor_telemetry": "/api/ranger-eye/sensor-telemetry/",
+            "sensor_alert": "/api/ranger-eye/sensor-alert/",
+            "delete_recording": "/api/ranger-eye/recordings/<recording_id>/delete/",
+        },
+    })
+
+
 def make_alert_id():
     next_number = RangerEyeAlert.objects.count() + 1
     return f"RE-{next_number:04d}"
