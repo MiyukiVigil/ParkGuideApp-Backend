@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import dashboard_data, upload_evidence, sensor_alert, sensor_telemetry, delete_recording
+from .views import api_root, dashboard_data, upload_evidence, sensor_alert, sensor_telemetry, delete_recording
 
 urlpatterns = [
+    path("", api_root, name="ranger_eye_api_root"),
     path("dashboard-data/", dashboard_data, name="ranger_eye_dashboard_data"),
     path("upload/", upload_evidence, name="ranger_eye_upload_evidence"),
     path("sensor-telemetry/", sensor_telemetry, name="ranger_eye_sensor_telemetry"),
