@@ -5,7 +5,8 @@ Simple CRUD operations with proper HTTP method handling
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated
+from accounts.permissions import IsAdmin, IsLearner
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
@@ -27,6 +28,9 @@ from courses.serializers_fresh import (
     QuizSerializer, QuizCreateUpdateSerializer,
 )
 from courses.prerequisite_utils import get_effective_prerequisite_codes
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 def update_chapter_progress_for_user(user, chapter):
@@ -170,7 +174,12 @@ class CourseViewSet(viewsets.ModelViewSet):
     DELETE /api/courses/{id}/ - Delete course
     POST /api/courses/{id}/enroll/ - Enroll user
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        if self.action == 'enroll':
+            return [IsLearner()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = Course.objects.filter(is_published=True)
@@ -218,7 +227,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         """Update existing course"""
         serializer.save()
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'], permission_classes=[IsLearner])
     def enroll(self, request, pk=None):
         """Enroll user in course"""
         course = self.get_object()
@@ -270,7 +279,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 class CourseEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     """List current user's course enrollments"""
     serializer_class = CourseEnrollmentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsLearner]
 
     def get_queryset(self):
         return CourseEnrollment.objects.filter(user=self.request.user).order_by('-updated_at')
@@ -289,7 +298,10 @@ class ChapterViewSet(viewsets.ModelViewSet):
     PUT /api/chapters/{id}/ - Update chapter
     DELETE /api/chapters/{id}/ - Delete chapter
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = Chapter.objects.all()
@@ -337,7 +349,10 @@ class LessonViewSet(viewsets.ModelViewSet):
     DELETE /api/lessons/{id}/ - Delete lesson
     POST /api/lessons/{id}/mark_complete/ - Mark as complete
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = Lesson.objects.all()
@@ -408,7 +423,10 @@ class PracticeExerciseViewSet(viewsets.ModelViewSet):
     DELETE /api/practice/{id}/ - Delete exercise
     POST /api/practice/{id}/submit/ - Submit exercise
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = PracticeExercise.objects.all()
@@ -505,30 +523,37 @@ class PracticeExerciseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        answers = request.data.get('answers', {})
-        score, _details = self._grade_answers(exercise.questions or [], answers)
-        passed = score >= exercise.passing_score
+        try:
+            answers = request.data.get('answers', {})
+            score, _details = self._grade_answers(exercise.questions or [], answers)
+            passed = score >= exercise.passing_score
 
-        attempt = self._create_practice_attempt(
-            user=user,
-            exercise=exercise,
-            answers=answers,
-            score=score,
-            passed=passed,
-        )
-        update_chapter_progress_for_user(user, exercise.chapter)
-        update_course_enrollment_progress(user, exercise.chapter.course)
+            attempt = self._create_practice_attempt(
+                user=user,
+                exercise=exercise,
+                answers=answers,
+                score=score,
+                passed=passed,
+            )
+            update_chapter_progress_for_user(user, exercise.chapter)
+            update_course_enrollment_progress(user, exercise.chapter.course)
 
-        return Response(
-            {
-                'message': 'Exercise submitted',
-                'score': score,
-                'passing_score': exercise.passing_score,
-                'passed': passed,
-                'attempt_number': attempt.attempt_number,
-            },
-            status=status.HTTP_201_CREATED
-        )
+            return Response(
+                {
+                    'message': 'Exercise submitted',
+                    'score': score,
+                    'passing_score': exercise.passing_score,
+                    'passed': passed,
+                    'attempt_number': attempt.attempt_number,
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception:
+            logger.error('Practice submission failed for exercise %s', pk, exc_info=True)
+            return Response(
+                {'error': 'An unexpected error occurred. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @staticmethod
     def _grade_answers(questions, answers):
@@ -619,7 +644,10 @@ class QuizViewSet(viewsets.ModelViewSet):
     DELETE /api/quizzes/{id}/ - Delete quiz
     POST /api/quizzes/{id}/submit/ - Submit quiz
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = Quiz.objects.all()
@@ -716,34 +744,45 @@ class QuizViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        answers = request.data.get('answers', {})
-        time_spent = request.data.get('time_spent', 0)
-        score, details = PracticeExerciseViewSet._grade_answers(quiz.questions or [], answers)
-        passed = score >= quiz.passing_score
+        try:
+            answers = request.data.get('answers', {})
+            try:
+                time_spent = int(request.data.get('time_spent', 0))
+            except (TypeError, ValueError):
+                time_spent = 0
 
-        attempt = self._create_quiz_attempt(
-            user=user,
-            quiz=quiz,
-            answers=answers,
-            score=score,
-            passed=passed,
-            time_spent=time_spent,
-        )
-        update_chapter_progress_for_user(user, quiz.chapter)
-        enrollment = update_course_enrollment_progress(user, quiz.chapter.course)
+            score, details = PracticeExerciseViewSet._grade_answers(quiz.questions or [], answers)
+            passed = score >= quiz.passing_score
 
-        return Response(
-            {
-                'message': 'Quiz submitted',
-                'score': score,
-                'passing_score': quiz.passing_score,
-                'passed': passed,
-                'attempt_number': attempt.attempt_number,
-                'details': details,
-                'course_progress_percentage': enrollment.progress_percentage,
-            },
-            status=status.HTTP_201_CREATED
-        )
+            attempt = self._create_quiz_attempt(
+                user=user,
+                quiz=quiz,
+                answers=answers,
+                score=score,
+                passed=passed,
+                time_spent=time_spent,
+            )
+            update_chapter_progress_for_user(user, quiz.chapter)
+            enrollment = update_course_enrollment_progress(user, quiz.chapter.course)
+
+            return Response(
+                {
+                    'message': 'Quiz submitted',
+                    'score': score,
+                    'passing_score': quiz.passing_score,
+                    'passed': passed,
+                    'attempt_number': attempt.attempt_number,
+                    'details': details,
+                    'course_progress_percentage': enrollment.progress_percentage,
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception:
+            logger.error('Quiz submission failed for quiz %s', pk, exc_info=True)
+            return Response(
+                {'error': 'An unexpected error occurred. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @staticmethod
     def _create_quiz_attempt(user, quiz, answers, score, passed, time_spent):
